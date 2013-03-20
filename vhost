@@ -1,0 +1,203 @@
+#!/bin/bash
+
+# NOTES:
+#
+# Usage: $ vhost dev.domain.tld
+#
+# 1. Accepts commandline argument with project name or requests it
+# 2. Creates two folders (maybe look at creating the site in the current directory???)
+#   a. ~/webdev/dev.domain.tld
+#   b. ~/web-files/dev.domain.tld
+# 3. Creates a new virtual host file in /etc/apache2/sites-available/
+# 4. Creates a new entry for the site in /etc/hosts
+# 5. Creates index.php as a phpinfo() file or if cli argument supplied incorporates bootstrap/
+# 6. Create a MySQL database for the site
+# 7. Initialise a Mercurial repo
+
+
+#############################################################################################
+#######################       CHECKING PERMISSIONS & ARGUMENTS        #######################
+#############################################################################################
+if [ "$(whoami)" != 'root' ]; then
+        echo "$0 requires root"
+        exit 1;
+fi
+
+
+### checking argument has been passed
+EXPECTED_ARGS=1
+E_BADARGS=65
+
+if [ $# -ne $EXPECTED_ARGS ]
+then
+  echo "Usage: `basename $0` {arg}"
+  exit $E_BADARGS
+fi
+
+ 
+### Configure email and vhost dir
+email='brian@tykus.ie'	# email address of administrator
+vhroot='/etc/apache2/sites-available' 	# no trailing slash
+iserror='no'
+hosterror=''
+direrror=''
+ 
+hostname=$1
+rootdir=/home/brian/webdev/$hostname
+ 
+ 
+### check whether hostname already exists
+if [ -e $vhroot"/"$hostname ]; then
+    echo "Hostname already exists. Please provide another hostname."
+    exit 1
+fi
+
+
+#############################################################################################
+#######################           BEGIN CREATING VIRTUAL HOST         #######################
+#############################################################################################
+ 
+### create the web root directory if not already existing
+if ! [ -d $rootdir ]; then
+    echo "Directory does not exist, creating it now"
+    mkdir $rootdir
+fi
+ 
+
+### create and write Apache2 Virtual host file
+if ! touch $vhroot/$hostname
+then
+        echo "ERROR: "$vhroot"/"$hostname" could not be created."
+else
+        echo "Virtual host document root created in "$vhroot"/"$hostname
+fi
+ 
+if ! echo "<VirtualHost *:80>
+ServerAdmin $email
+ServerName $hostname
+ServerAlias $hostname www.$hostname
+DocumentRoot $rootdir
+<Directory />
+        AllowOverride All
+</Directory>
+<Directory $rootdir>
+        AllowOverride All
+</Directory>
+ErrorLog /var/log/apache2/$hostname
+ LogLevel error
+CustomLog /var/log/apache2/$hostname custom
+</VirtualHost>" > $vhroot/$hostname
+then
+        echo "ERROR: the virtual host could not be added."
+else
+        echo "New virtual host added to the Apache vhosts file"
+fi
+
+
+ 
+### Add hostname in /etc/hosts
+if ! echo "127.0.0.1       $hostname" >> /etc/hosts
+then
+    echo "ERROR: Not able write in /etc/hosts"
+else
+    echo "Host added to /etc/hosts file"
+fi
+ 
+### enable website
+a2ensite $hostname
+ 
+### restart Apache
+/etc/init.d/apache2 reload
+ 
+### give permission to root dir
+chown -R "$(whoami)":"$(whoami)" $rootdir
+chmod 755 $rootdir
+
+
+### create index.php test file 
+if ! touch $rootdir/index.php
+then
+    echo "ERROR: "$rootdir"/index.php could not be created."
+else
+    echo ""$rootdir"/index.php created."
+fi
+
+### write to index.php test file
+if ! echo "<h1>"$hostname"</h1>" > $rootdir/index.php
+then
+    echo "ERROR: Not able to write in file "$rootdir"/index.php. Please check permissions."
+else
+    echo "Added content to "$rootdir"/index.php."
+fi
+
+
+#############################################################################################
+#######################               CREATE MySQL DATABASE           #######################
+#############################################################################################
+# BTICK='`'
+# EXPECTED_ARGS=3
+# E_BADARGS=65
+# MYSQL=`which mysql`
+
+# Q1="CREATE DATABASE IF NOT EXISTS ${BTICK}$hostname${BTICK};"
+# Q2="GRANT ALL ON ${BTICK}$hostname${BTICK}.* TO 'root'@'localhost' IDENTIFIED BY 'g1ven2fly';"
+# Q3="FLUSH PRIVILEGES;"
+# SQL="${Q1}${Q2}${Q3}"
+
+# $MYSQL -uroot -p -e "$SQL"
+
+
+
+
+#############################################################################################
+#######################           INITIALISE MERCURIAL REPO           #######################
+#############################################################################################
+hg init $rootdir
+ 
+if ! touch $rootdir/.hg/hgrc
+then
+    echo "ERROR: "$rootdir"/.hg/hgrc could not be created."
+else
+    echo ""$rootdir"/.hg/hgrc created."
+fi
+if ! echo "[ui]
+username = Brian O'Sullivan <brian@tykus.ie>
+
+[alias]
+slog = log --limit 5 --stat
+pb = push -b default --new-branch
+upd = up default
+pu = pull -u
+br = branch
+brs = branches
+cb = ci -m "closing branch" --close-branch
+b = branch
+md = merge default
+mdc = ci -m "merged in default"
+ab = ci -m "adding branch"
+mc = ci -m "latest changes"
+
+ 
+
+[extensions]
+graphlog =
+bookmarks =
+hgext.churn=
+fetch =
+color =
+mq =
+hgext.purge=
+" > $rootdir/.hg/hgrc
+then
+    echo "ERROR: Not able to write in file "$rootdir"/phpinfo.php. Please check permissions."
+else
+    echo "Added content to "$rootdir"/phpinfo.php."
+fi
+
+
+#############################################################################################
+#######################                 COMPLETED                     #######################
+#############################################################################################
+echo "Complete! The new virtual host has been created.
+To check the functionality browse http://"$hostname"/phpinfo.php
+Document root is "$vhroot"/"$hostname
