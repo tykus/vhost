@@ -6,10 +6,10 @@ A shell script for creating virtual hosts
 About
 -----
 vhost is a shell script which takes a single argument, the name of a Virtual Host. 
-1. Writes a site-available file, and enables it. 
-1. Creates a /etc/hosts entry for the virtual host, restarts apache2 service. 
-1. Creates a webroot directory in a pre-existing ~/webdev directory
-1. Writes a phpinfo file in webroot for test purposes
+*Writes a site-available file, and enables it. 
+*Creates a /etc/hosts entry for the virtual host, restarts apache2 service. 
+*Creates a webroot directory in a pre-existing ~/webdev directory
+*Writes a phpinfo file in webroot for test purposes
 
 
 Requirements
